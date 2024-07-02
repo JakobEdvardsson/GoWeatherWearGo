@@ -16,7 +16,81 @@ func (s *Server) handleGetUserById(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(user)
 }
 
-// ____    __    ____  _______     ___   .___________. __    __   _______ .______
+//   _______  _______   ______     ______   ______    _______   __  .__   __.   _______
+//  /  _____||   ____| /  __  \   /      | /  __  \  |       \ |  | |  \ |  |  /  _____|
+// |  |  __  |  |__   |  |  |  | |  ,----'|  |  |  | |  .--.  ||  | |   \|  | |  |  __
+// |  | |_ | |   __|  |  |  |  | |  |     |  |  |  | |  |  |  ||  | |  . `  | |  | |_ |
+// |  |__| | |  |____ |  `--'  | |  `----.|  `--'  | |  '--'  ||  | |  |\   | |  |__| |
+//  \______| |_______| \______/   \______| \______/  |_______/ |__| |__| \__|  \______|
+
+func (s *Server) handleGetGeocodeFromCity(w http.ResponseWriter, r *http.Request) {
+	city := r.PathValue("city")
+
+	if city == "" {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "Missing required attribute city")
+		return
+	}
+
+	res, err := http.Get(s.BASE_URL_WEATHER_API_LOCATION + "&q=" + city)
+	if err != nil {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		fmt.Fprintln(w, "Error getting data from WeatherAPI")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	body, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	if err != nil {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	var geocoding types.GeocodingResponse
+	err = json.Unmarshal(body, &geocoding)
+
+	if err != nil || len(geocoding) < 1 {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	type GeocodingLocation struct {
+		Name    string  `json:"name"`
+		Lat     float64 `json:"latitude"`
+		Lon     float64 `json:"longitude"`
+		Region  string  `json:"region"`
+		Country string  `json:"country"`
+	}
+
+	response := GeocodingLocation{
+		Name:    geocoding[0].Name,
+		Lat:     geocoding[0].Lat,
+		Lon:     geocoding[0].Lon,
+		Region:  geocoding[0].Region,
+		Country: geocoding[0].Country,
+	}
+
+	jsonData, err := json.Marshal(response)
+	if err != nil {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(jsonData)
+}
+
+// ____    __    ____  _______     ___    ___________  __    __   _______  ______
 // \   \  /  \  /   / |   ____|   /   \  |           ||  |  |  | |   ____||   _  \
 //  \   \/    \/   /  |  |__     /  ^  \ `---|  |----`|  |__|  | |  |__   |  |_)  |
 //   \            /   |   __|   /  /_\  \    |  |     |   __   | |   __|  |      /

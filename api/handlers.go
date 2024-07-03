@@ -179,7 +179,7 @@ func (s *Server) handleGetWeatherFromCords(w http.ResponseWriter, r *http.Reques
 		Degrees:        weather.Current.TempC,
 		Condition:      weather.Current.Condition.Text,
 		WeatherKeyword: weatherCondition.WeatherKeyword,
-		WeatherPicture: "/images/weather/" + string(weatherCondition.WeatherKeyword) + "svg",
+		WeatherPicture: "images/weather/" + string(weatherCondition.WeatherKeyword) + ".svg",
 	}
 	jsonData, err := json.Marshal(response)
 	if err != nil {

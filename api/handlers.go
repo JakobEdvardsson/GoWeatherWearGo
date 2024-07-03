@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -26,7 +25,6 @@ func (s *Server) handleGetUserById(w http.ResponseWriter, r *http.Request) {
 //  \______| |_______| \______/   \______| \______/  |_______/ |__| |__| \__|  \______|
 
 func (s *Server) handleGetGeocodeFromCity(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("start")
 	city := r.PathValue("city")
 
 	if city == "" {
@@ -88,6 +86,10 @@ func (s *Server) handleGetGeocodeFromCity(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// TODO: Add CORS config middleware function
+	w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(jsonData)
@@ -187,6 +189,10 @@ func (s *Server) handleGetWeatherFromCords(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// TODO: Add CORS config middleware function
+	w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(jsonData)

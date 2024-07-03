@@ -1,11 +1,13 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/JakobEdvardsson/GoWeatherWearGo/types"
 )
@@ -24,30 +26,35 @@ func (s *Server) handleGetUserById(w http.ResponseWriter, r *http.Request) {
 //  \______| |_______| \______/   \______| \______/  |_______/ |__| |__| \__|  \______|
 
 func (s *Server) handleGetGeocodeFromCity(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("start")
 	city := r.PathValue("city")
 
 	if city == "" {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "Missing required attribute city")
+		http.Error(w, "Missing required attribute city", http.StatusBadRequest)
 		return
 	}
 
-	res, err := http.Get(s.BASE_URL_WEATHER_API_LOCATION + "&q=" + city)
+	ctx := r.Context()
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+
+	req, err := http.NewRequest(http.MethodGet, s.BASE_URL_WEATHER_API_LOCATION+"&q="+city, nil)
 	if err != nil {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		fmt.Fprintln(w, "Error getting data from WeatherAPI")
-		w.WriteHeader(http.StatusInternalServerError)
+		http.Error(w, "Error creating request", http.StatusInternalServerError)
 		return
 	}
+	req = req.WithContext(ctx)
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil || res.StatusCode != http.StatusOK {
+		http.Error(w, "Error getting data from WeatherAPI", http.StatusInternalServerError)
+		return
+	}
+
 	body, err := io.ReadAll(res.Body)
-	res.Body.Close()
+	defer res.Body.Close()
 	if err != nil {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.WriteHeader(http.StatusInternalServerError)
+		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 
@@ -55,9 +62,7 @@ func (s *Server) handleGetGeocodeFromCity(w http.ResponseWriter, r *http.Request
 	err = json.Unmarshal(body, &geocoding)
 
 	if err != nil || len(geocoding) < 1 {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.WriteHeader(http.StatusNotFound)
+		http.Error(w, "No search result found", http.StatusNotFound)
 		return
 	}
 
@@ -79,9 +84,7 @@ func (s *Server) handleGetGeocodeFromCity(w http.ResponseWriter, r *http.Request
 
 	jsonData, err := json.Marshal(response)
 	if err != nil {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.WriteHeader(http.StatusInternalServerError)
+		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 
@@ -100,71 +103,62 @@ func (s *Server) handleGetGeocodeFromCity(w http.ResponseWriter, r *http.Request
 func (s *Server) handleGetWeatherFromCords(w http.ResponseWriter, r *http.Request) {
 	latitudeInput := r.URL.Query().Get("latitude")
 	if latitudeInput == "" {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "Missing required attribute latitude")
+		http.Error(w, "Missing required attribute latitude", http.StatusBadRequest)
 		return
 	}
 
 	longitudeInput := r.URL.Query().Get("longitude")
 	if longitudeInput == "" {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintln(w, "Missing required attribute longitude")
+		http.Error(w, "Missing required attribute longitude", http.StatusBadRequest)
 		return
 	}
 
 	lat, err := strconv.ParseFloat(latitudeInput, 64)
 	if err != nil || lat < -90 || lat > 90 {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		fmt.Fprintln(w, "Missing required attribute latitude")
-		w.WriteHeader(http.StatusBadRequest)
+		http.Error(w, "Missing required attribute latitude", http.StatusBadRequest)
 		return
 	}
 
 	lon, err := strconv.ParseFloat(longitudeInput, 64)
 	if err != nil || lon < -180 || lon > 180 {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		fmt.Fprintln(w, "Missing required attribute longitude")
-		w.WriteHeader(http.StatusBadRequest)
+		http.Error(w, "Missing required attribute longitude", http.StatusBadRequest)
 		return
 	}
 
-	res, err := http.Get(s.BASE_URL_WEATHER_API_CURRENT_WEATHER + "&q=" + latitudeInput + "," + longitudeInput)
+	ctx := r.Context()
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+
+	req, err := http.NewRequest(http.MethodGet, s.BASE_URL_WEATHER_API_CURRENT_WEATHER+"&q="+latitudeInput+","+longitudeInput, nil)
 	if err != nil {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		fmt.Fprintln(w, "Error getting data from WeatherAPI")
-		w.WriteHeader(http.StatusNotFound)
+		http.Error(w, "Error creating request", http.StatusInternalServerError)
 		return
 	}
+	req = req.WithContext(ctx)
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil || res.StatusCode != http.StatusOK {
+		http.Error(w, "Error getting data from WeatherAPI", http.StatusInternalServerError)
+		return
+	}
+
 	body, err := io.ReadAll(res.Body)
-	res.Body.Close()
+	defer res.Body.Close()
 	if err != nil {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.WriteHeader(http.StatusInternalServerError)
+		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 
 	var weather types.WeatherResponse
 	err = json.Unmarshal(body, &weather)
 	if err != nil {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.WriteHeader(http.StatusInternalServerError)
+		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 
 	weatherCondition, ok := types.WEATHER_CONDITIONS[weather.Current.Condition.Code]
 	if !ok {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.WriteHeader(http.StatusInternalServerError)
+		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 
@@ -189,9 +183,7 @@ func (s *Server) handleGetWeatherFromCords(w http.ResponseWriter, r *http.Reques
 	}
 	jsonData, err := json.Marshal(response)
 	if err != nil {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.WriteHeader(http.StatusInternalServerError)
+		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 

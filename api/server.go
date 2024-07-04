@@ -27,9 +27,9 @@ func NewServer(listenPort string, storage storage.Storage, apiKey string) *Serve
 func (s *Server) Start() error {
 	http.HandleFunc("GET /user", s.handleGetUserById)
 
-	http.HandleFunc("GET /api/geocoding/{city}", s.handleGetGeocodeFromCity)
+	http.HandleFunc("GET /api/geocoding/{city}", AddCorsHeaderMiddleware(s.handleGetGeocodeFromCity))
 
-	http.HandleFunc("GET /api/weather", s.handleGetWeatherFromCords)
+	http.HandleFunc("GET /api/weather", AddCorsHeaderMiddleware(s.handleGetWeatherFromCords))
 
 	return http.ListenAndServe(s.listenPort, nil)
 }

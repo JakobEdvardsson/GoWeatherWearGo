@@ -11,12 +11,6 @@ import (
 	"github.com/JakobEdvardsson/GoWeatherWearGo/types"
 )
 
-func (s *Server) handleGetUserById(w http.ResponseWriter, r *http.Request) {
-	user := s.storage.Get(4)
-
-	json.NewEncoder(w).Encode(user)
-}
-
 //   _______  _______   ______     ______   ______    _______   __  .__   __.   _______
 //  /  _____||   ____| /  __  \   /      | /  __  \  |       \ |  | |  \ |  |  /  _____|
 // |  |  __  |  |__   |  |  |  | |  ,----'|  |  |  | |  .--.  ||  | |   \|  | |  |  __

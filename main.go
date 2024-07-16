@@ -9,10 +9,11 @@ import (
 	"github.com/JakobEdvardsson/GoWeatherWearGo/api"
 	"github.com/JakobEdvardsson/GoWeatherWearGo/storage"
 	"github.com/JakobEdvardsson/GoWeatherWearGo/util"
+	_ "github.com/lib/pq"
 )
 
 func init() {
-	weatherApiKey := os.Getenv("API-KEY-WEATHERAPI")
+	weatherApiKey := os.Getenv("API_KEY_WEATHERAPI")
 	if weatherApiKey == "" {
 		err := util.LoadEnvFile(".env")
 		if err != nil {
@@ -28,8 +29,9 @@ func main() {
 	fmt.Printf("Running on port: %v\n", *listenPort)
 
 	storage := storage.NewPostgresStorage()
+	defer storage.DB.Close()
 
-	weatherApiKey := os.Getenv("API-KEY-WEATHERAPI")
+	weatherApiKey := os.Getenv("API_KEY_WEATHERAPI")
 	if weatherApiKey == "" {
 		err := util.LoadEnvFile(".env")
 		if err != nil {
@@ -37,6 +39,6 @@ func main() {
 		}
 	}
 
-	server := api.NewServer(*listenPort, storage, os.Getenv("API-KEY-WEATHERAPI"))
+	server := api.NewServer(*listenPort, storage, os.Getenv("API_KEY_WEATHERAPI"))
 	log.Fatal(server.Start())
 }

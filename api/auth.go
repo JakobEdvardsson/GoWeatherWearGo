@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/JakobEdvardsson/GoWeatherWearGo/storage"
 	"github.com/JakobEdvardsson/GoWeatherWearGo/util"
@@ -94,31 +95,28 @@ func handleSpotifyCallback(w http.ResponseWriter, r *http.Request, storage stora
 	// Check if user exists in DB, if not add user to DB
 
 	user, err := storage.GetUser(profile.Email)
-	fmt.Println("getUser")
 	if err == sql.ErrNoRows {
 		fmt.Println("User does not exist in DB")
 		user, err = storage.AddUser(profile)
 		if err != nil {
-			fmt.Println("Error when adding user to DB")
-			fmt.Println(err)
 			http.Error(w, "Error when adding user to DB", http.StatusBadRequest)
-			// DB blew up
 			return
 		}
 	} else if err != nil {
-		fmt.Println("Error when getting user from DB")
-		fmt.Println(err)
-		// DB blew up
+		http.Error(w, "Error when adding user to DB", http.StatusBadRequest)
 		return
 	}
 
 	fmt.Println("User: ", user)
 
-	// Add session to DB, and check if session is valid
-
+	err = storage.RefreshAccountSession(token, user)
+	if err != nil {
+		http.Error(w, "Error refreshing account session in DB", http.StatusBadRequest)
+		return
+	}
 }
 
-// TODO: Add DB check of session && move to middleware.go
+// TODO: move to middleware.go
 func SpotifyAuthMiddleware(next func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("spotify_token")
@@ -132,6 +130,11 @@ func SpotifyAuthMiddleware(next func(http.ResponseWriter, *http.Request)) func(h
 
 		// Add the client to the request context
 		ctx := context.WithValue(r.Context(), spotifyClientKey, client)
+
+		// TODO: Check that session isn't expired
+		if time.Now().After(token.Expiry) {
+
+		}
 
 		next(w, r.WithContext(ctx))
 	})

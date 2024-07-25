@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/JakobEdvardsson/GoWeatherWearGo/types"
 	"github.com/JakobEdvardsson/GoWeatherWearGo/util"
+	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 	"golang.org/x/oauth2"
 )
@@ -70,6 +72,7 @@ func NewPostgresStorage() *PostgresStorage {
 
 // Check if user exists in DB and return user, else return nil
 func (s *PostgresStorage) GetUser(email string) (*types.User, error) {
+	// TODO: Change * to explicit select
 	query := `SELECT * FROM "User" WHERE email = $1`
 	var user types.User
 	err := s.DB.QueryRow(query, email).Scan(&user.ID, &user.Name, &user.Email, &user.EmailVerified, &user.Image)
@@ -87,12 +90,11 @@ func (s *PostgresStorage) AddUser(spotifyProfile *types.SpotifyProfileResponse) 
 	var user types.User
 	err := s.DB.QueryRow(userQuery, spotifyProfile.DisplayName, spotifyProfile.Email, nil, nil).Scan(&user.ID, &user.Name, &user.Email, &user.EmailVerified, &user.Image)
 	if err != nil {
-		fmt.Println("booom: ", err)
+		fmt.Println("kabooom: ", err)
 		return nil, err
 	}
 	fmt.Println("Added db.User")
 
-	// insert into Account (id, userId, type, provider, providerAccountId, refresh_token, access_token, expires_at, token_type, scope, id_token, session_state) values ('1da5797a-429e-4c0c-86f6-8480461396af', '22f01aa9-99e2-477b-a001-9b21b659d77f', 'oauth', 'spotify', 'jakob.edvardsson', 'AQDQJAH7Qj4FYSjLWBNXXXn3lc31EnbhsMUvYWlcr2fEOt0tElmFw2txC3-6SOz7zlen-kkJII4jbl5rqy2bKZKKQqA6YJrgKWcHkxAA7uwI3o7LA5UM3YzrwG5-kpiptx15hg', 'BQDOoVM2GZ2sF50M7cWPKYw-vWYUeBItp1Yr-F2svEySaRQuFdS53kYGYECQV00O93LCklLxAlzsa8FXFXH0tWLH1PMA8l5MjqwQb1Mn4P7emSVE4MggQsQj1C-0RJhPvLRxKvb1_Bbh91ri5X6v8uy6Z4Uee6EB9NKPhCN76S9f8FMvAS7p4izc1ZLSJi0', 1710600239, 'bearer', 'user-read-email', null, null);
 	res, err := s.DB.Exec(accountQuery, user.ID, "oauth", "spotify", spotifyProfile.ID, "bearer", "user-read-email")
 	rowsAffected, _ := res.RowsAffected()
 	if err != nil || rowsAffected == 0 {
@@ -103,10 +105,10 @@ func (s *PostgresStorage) AddUser(spotifyProfile *types.SpotifyProfileResponse) 
 	return &user, nil
 }
 
-func (s *PostgresStorage) RefreshAccountSession(token *oauth2.Token, user *types.User) error {
+func (s *PostgresStorage) UpdateSpotifySession(refreshToken string, accessToken string, expiry time.Time, userId string) error {
 	accountQuery := `UPDATE "Account" SET refresh_token = $1, access_token = $2, expires_at = $3 WHERE "userId" = $4`
 
-	res, err := s.DB.Exec(accountQuery, token.RefreshToken, token.AccessToken, token.Expiry.Unix(), user.ID)
+	res, err := s.DB.Exec(accountQuery, refreshToken, accessToken, expiry.Unix(), userId)
 	if err != nil {
 		fmt.Println("True: err != nil: ", err)
 		return err
@@ -119,4 +121,57 @@ func (s *PostgresStorage) RefreshAccountSession(token *oauth2.Token, user *types
 	fmt.Println("Refreshed db.Account")
 
 	return nil
+}
+
+// TODO implement creation of user sessions in DB
+func (s *PostgresStorage) CreateUserSession(token *oauth2.Token, user *types.User) (session *types.Session, err error) {
+	accountQuery := `INSERT INTO "Session" ("userId", "sessionToken", "expires") VALUES ($1, $2, $3) RETURNING id, "userId", "sessionToken", "expires";`
+	session = &types.Session{}
+
+	sessionToken := uuid.New().String()
+	expires := time.Now().Add(time.Hour * 24).UTC()
+
+	err = s.DB.QueryRow(accountQuery, user.ID, sessionToken, expires).Scan(&session.ID, &session.UserID, &session.SessionToken, &session.Expires)
+	if err != nil {
+		fmt.Println("booom: ", err)
+		return nil, err
+	}
+	return session, nil
+}
+
+func (s *PostgresStorage) GetUserSession(sessionToken string) (session *types.Session, err error) {
+	query := `SELECT "id", "userId", "sessionToken", "expires" FROM "Session" WHERE "sessionToken" = $1;`
+	session = &types.Session{}
+
+	err = s.DB.QueryRow(query, sessionToken).Scan(&session.ID, &session.UserID, &session.SessionToken, &session.Expires)
+	if err != nil {
+		return nil, err
+	}
+
+	return session, nil
+}
+
+func (s *PostgresStorage) GetAccount(userID string) (account *types.Account, err error) {
+	query := `SELECT id, "userId", type, provider, "providerAccountId", refresh_token, access_token, expires_at, token_type, scope, id_token, session_state FROM "Account" WHERE "userId" = $1;`
+	account = &types.Account{}
+
+	err = s.DB.QueryRow(query, userID).Scan(
+		&account.ID,
+		&account.UserID,
+		&account.Type,
+		&account.Provider,
+		&account.ProviderAccountID,
+		&account.RefreshToken,
+		&account.AccessToken,
+		&account.ExpiresAt,
+		&account.TokenType,
+		&account.Scope,
+		&account.IDToken,
+		&account.SessionState)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return account, nil
 }

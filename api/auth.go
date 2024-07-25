@@ -1,15 +1,21 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
 	"github.com/JakobEdvardsson/GoWeatherWearGo/storage"
+	"github.com/JakobEdvardsson/GoWeatherWearGo/types"
 	"github.com/JakobEdvardsson/GoWeatherWearGo/util"
 	_ "github.com/lib/pq"
 	"golang.org/x/oauth2"
@@ -58,7 +64,6 @@ func handleSpotifyLogin(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
-// TODO: Add logic for adding session to DB session table
 func handleSpotifyCallback(w http.ResponseWriter, r *http.Request, storage storage.Storage) {
 	if r.FormValue("state") != oauthStateString {
 		http.Error(w, "State is invalid", http.StatusBadRequest)
@@ -70,18 +75,6 @@ func handleSpotifyCallback(w http.ResponseWriter, r *http.Request, storage stora
 		http.Error(w, "Could not get token", http.StatusInternalServerError)
 		return
 	}
-
-	http.SetCookie(w, &http.Cookie{
-		Name:       "spotify_token",
-		Value:      token.AccessToken,
-		Path:       "",
-		Domain:     "",
-		Expires:    token.Expiry,
-		RawExpires: "",
-		Secure:     false,
-		HttpOnly:   true,
-		SameSite:   http.SameSiteStrictMode,
-	})
 
 	// Get user info from Spotify API: GET https://api.spotify.com/v1/me
 
@@ -99,43 +92,84 @@ func handleSpotifyCallback(w http.ResponseWriter, r *http.Request, storage stora
 		fmt.Println("User does not exist in DB")
 		user, err = storage.AddUser(profile)
 		if err != nil {
-			http.Error(w, "Error when adding user to DB", http.StatusBadRequest)
+			http.Error(w, "Error when adding user to DB", http.StatusInternalServerError)
 			return
 		}
 	} else if err != nil {
-		http.Error(w, "Error when adding user to DB", http.StatusBadRequest)
+		http.Error(w, "Error when adding user to DB", http.StatusInternalServerError)
 		return
 	}
-
 	fmt.Println("User: ", user)
 
-	err = storage.RefreshAccountSession(token, user)
+	err = storage.UpdateSpotifySession(token.RefreshToken, token.AccessToken, token.Expiry, user.ID.String())
 	if err != nil {
-		http.Error(w, "Error refreshing account session in DB", http.StatusBadRequest)
+		http.Error(w, "Error updating account session in DB", http.StatusInternalServerError)
 		return
 	}
+
+	session, err := storage.CreateUserSession(token, user)
+	if err != nil || session.SessionToken == "" {
+		http.Error(w, "Error creating session in DB", http.StatusInternalServerError)
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:       "session_token",
+		Value:      session.SessionToken,
+		Path:       "",
+		Domain:     "",
+		Expires:    session.Expires,
+		RawExpires: "",
+		Secure:     false,
+		HttpOnly:   true,
+		SameSite:   http.SameSiteStrictMode,
+	})
 }
 
-// TODO: move to middleware.go
-func SpotifyAuthMiddleware(next func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cookie, err := r.Cookie("spotify_token")
-		if err != nil {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
+func RefreshSpotifyToken(refreshToken string, w http.ResponseWriter, r *http.Request) (response *types.RefreshTokenResponse, err error) {
+	const refreshUrl = "https://accounts.spotify.com/api/token"
+	clientID := os.Getenv("AUTH_SPOTIFY_CLIENT_ID")
+	clientSecret := os.Getenv("AUTH_SPOTIFY_CLIENT_SECRET")
 
-		token := &oauth2.Token{AccessToken: cookie.Value}
-		client := spotifyOauthConfig.Client(r.Context(), token)
+	credentials := clientID + ":" + clientSecret
+	encoded := base64.StdEncoding.EncodeToString([]byte(credentials))
+	basicAuth := "Basic " + encoded
 
-		// Add the client to the request context
-		ctx := context.WithValue(r.Context(), spotifyClientKey, client)
+	formData := url.Values{}
 
-		// TODO: Check that session isn't expired
-		if time.Now().After(token.Expiry) {
+	formData.Set("grant_type", "refresh_token")
+	formData.Set("refresh_token", refreshToken)
+	formData.Set("Authorization", basicAuth)
+	formData.Set("Content-Type", "application/x-www-form-urlencoded")
 
-		}
+	ctx := r.Context()
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
 
-		next(w, r.WithContext(ctx))
-	})
+	req, err := http.NewRequest("POST", refreshUrl, bytes.NewBufferString(formData.Encode()))
+	if err != nil {
+		http.Error(w, "Error creating request", http.StatusInternalServerError)
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil || res.StatusCode != http.StatusOK {
+		http.Error(w, "Error getting data from WeatherAPI", http.StatusInternalServerError)
+		return nil, err
+	}
+
+	body, err := io.ReadAll(res.Body)
+	defer res.Body.Close()
+	if err != nil {
+		http.Error(w, "", http.StatusInternalServerError)
+		return nil, err
+	}
+
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		return nil, err
+	}
+
+	return response, nil
 }

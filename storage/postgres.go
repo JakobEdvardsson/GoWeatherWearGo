@@ -54,12 +54,9 @@ func init() {
 }
 
 func NewPostgresStorage() *PostgresStorage {
-	fmt.Println(*pgSettings)
-
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
 		pgSettings.pgHost, pgSettings.pgPort, pgSettings.pgUsername, pgSettings.pgPassword, pgSettings.pgDbname)
 
-	fmt.Println(psqlInfo)
 	db, err := sql.Open("postgres", psqlInfo)
 	if err != nil {
 		panic(err)
@@ -90,17 +87,14 @@ func (s *PostgresStorage) AddUser(spotifyProfile *types.SpotifyProfileResponse) 
 	var user types.User
 	err := s.DB.QueryRow(userQuery, spotifyProfile.DisplayName, spotifyProfile.Email, nil, nil).Scan(&user.ID, &user.Name, &user.Email, &user.EmailVerified, &user.Image)
 	if err != nil {
-		fmt.Println("kabooom: ", err)
 		return nil, err
 	}
-	fmt.Println("Added db.User")
 
 	res, err := s.DB.Exec(accountQuery, user.ID, "oauth", "spotify", spotifyProfile.ID, "bearer", "user-read-email")
 	rowsAffected, _ := res.RowsAffected()
 	if err != nil || rowsAffected == 0 {
 		return nil, err
 	}
-	fmt.Println("Added db.Account")
 
 	return &user, nil
 }
@@ -110,15 +104,12 @@ func (s *PostgresStorage) UpdateSpotifySession(refreshToken string, accessToken 
 
 	res, err := s.DB.Exec(accountQuery, refreshToken, accessToken, expiry.Unix(), userId)
 	if err != nil {
-		fmt.Println("True: err != nil: ", err)
 		return err
 	}
 	rowsAffected, err := res.RowsAffected()
 	if err != nil || rowsAffected == 0 {
-		fmt.Println("True: err != nil || rowsAffected == 0")
 		return err
 	}
-	fmt.Println("Refreshed db.Account")
 
 	return nil
 }
@@ -133,7 +124,6 @@ func (s *PostgresStorage) CreateUserSession(token *oauth2.Token, user *types.Use
 
 	err = s.DB.QueryRow(accountQuery, user.ID, sessionToken, expires).Scan(&session.ID, &session.UserID, &session.SessionToken, &session.Expires)
 	if err != nil {
-		fmt.Println("booom: ", err)
 		return nil, err
 	}
 	return session, nil

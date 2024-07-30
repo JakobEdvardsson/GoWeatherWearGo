@@ -34,11 +34,11 @@ func (s *Server) Start() error {
 
 	http.HandleFunc("GET /api/geocoding/{city}", AddCorsHeaderMiddleware(s.handleGetGeocodeFromCity))
 
-	http.HandleFunc("GET /api/weather", AddCorsHeaderMiddleware(s.handleGetWeatherFromCords))
+	http.HandleFunc("GET /api/weather", AddCorsHeaderMiddleware(SpotifyAuthMiddleware(s.handleGetWeatherFromCords, s.storage)))
 
-	http.HandleFunc("GET /login", AddCorsHeaderMiddleware(handleSpotifyLogin))
+	http.HandleFunc("POST /api/auth/signin/spotify", AddCorsHeaderMiddleware(handleSpotifyLogin))
 
-	http.HandleFunc("GET /callback", AddCorsHeaderMiddleware(func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("GET /api/auth/callback/spotify", AddCorsHeaderMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		handleSpotifyCallback(w, r, s.storage)
 	}))
 

@@ -27,7 +27,7 @@ func (s *Server) handleGetGeocodeFromCity(w http.ResponseWriter, r *http.Request
 	}
 
 	ctx := r.Context()
-	ctx, cancel := context.WithTimeout(ctx, time.Second)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
 	req, err := http.NewRequest(http.MethodGet, s.BASE_URL_WEATHER_API_LOCATION+"&q="+city, nil)

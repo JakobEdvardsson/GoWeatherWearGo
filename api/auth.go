@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -51,15 +50,13 @@ func initOauthConfig() {
 	spotifyOauthConfig = &oauth2.Config{
 		ClientID:     os.Getenv("AUTH_SPOTIFY_CLIENT_ID"),
 		ClientSecret: os.Getenv("AUTH_SPOTIFY_CLIENT_SECRET"),
-		RedirectURL:  "http://localhost:8080/callback",
+		RedirectURL:  "http://localhost:8080/api/auth/callback/spotify",
 		Scopes:       []string{"user-read-email"},
 		Endpoint:     spotify.Endpoint,
 	}
 }
 
 func handleSpotifyLogin(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(spotifyOauthConfig)
-	fmt.Println("spotifyOauthConfig")
 	url := spotifyOauthConfig.AuthCodeURL(oauthStateString)
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
@@ -80,16 +77,13 @@ func handleSpotifyCallback(w http.ResponseWriter, r *http.Request, storage stora
 
 	profile, err := GetSpotifyUser(w, r, token.AccessToken)
 	if err != nil || profile == nil {
-		fmt.Println("profile, err := GetSpotifyUser(w, r):", err)
+		http.Error(w, "Could not get Spotify user", http.StatusInternalServerError)
 		return
 	}
-	fmt.Println(profile)
 
 	// Check if user exists in DB, if not add user to DB
-
 	user, err := storage.GetUser(profile.Email)
 	if err == sql.ErrNoRows {
-		fmt.Println("User does not exist in DB")
 		user, err = storage.AddUser(profile)
 		if err != nil {
 			http.Error(w, "Error when adding user to DB", http.StatusInternalServerError)
@@ -99,7 +93,6 @@ func handleSpotifyCallback(w http.ResponseWriter, r *http.Request, storage stora
 		http.Error(w, "Error when adding user to DB", http.StatusInternalServerError)
 		return
 	}
-	fmt.Println("User: ", user)
 
 	err = storage.UpdateSpotifySession(token.RefreshToken, token.AccessToken, token.Expiry, user.ID.String())
 	if err != nil {
@@ -139,8 +132,6 @@ func RefreshSpotifyToken(refreshToken string, w http.ResponseWriter, r *http.Req
 
 	formData.Set("grant_type", "refresh_token")
 	formData.Set("refresh_token", refreshToken)
-	formData.Set("Authorization", basicAuth)
-	formData.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	ctx := r.Context()
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
@@ -148,21 +139,21 @@ func RefreshSpotifyToken(refreshToken string, w http.ResponseWriter, r *http.Req
 
 	req, err := http.NewRequest("POST", refreshUrl, bytes.NewBufferString(formData.Encode()))
 	if err != nil {
-		http.Error(w, "Error creating request", http.StatusInternalServerError)
 		return nil, err
 	}
 	req = req.WithContext(ctx)
 
+	req.Header.Set("Authorization", basicAuth)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	res, err := http.DefaultClient.Do(req)
 	if err != nil || res.StatusCode != http.StatusOK {
-		http.Error(w, "Error getting data from WeatherAPI", http.StatusInternalServerError)
 		return nil, err
 	}
 
 	body, err := io.ReadAll(res.Body)
 	defer res.Body.Close()
 	if err != nil {
-		http.Error(w, "", http.StatusInternalServerError)
 		return nil, err
 	}
 

@@ -42,5 +42,8 @@ func (s *Server) Start() error {
 		handleSpotifyCallback(w, r, s.storage)
 	}))
 
+	// TODO: add CSRF in application
+	http.HandleFunc("GET /api/auth/csrf", nil)
+
 	return http.ListenAndServe(s.listenPort, nil)
 }

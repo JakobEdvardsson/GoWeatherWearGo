@@ -45,7 +45,7 @@ func init() {
 	}
 
 	pgSettings = &PostgresSettings{
-		pgHost:     "localhost",
+		pgHost:     "host.docker.internal",
 		pgPort:     5432,
 		pgUsername: pgUsername,
 		pgPassword: pgPassword,

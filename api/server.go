@@ -36,14 +36,14 @@ func (s *Server) Start() error {
 
 	http.HandleFunc("GET /api/weather", AddCorsHeaderMiddleware(SpotifyAuthMiddleware(s.handleGetWeatherFromCords, s.storage)))
 
-	http.HandleFunc("POST /api/auth/signin/spotify", AddCorsHeaderMiddleware(handleSpotifyLogin))
+	http.HandleFunc("GET /api/auth/signin/spotify", AddCorsHeaderMiddleware(handleSpotifyLogin))
 
 	http.HandleFunc("GET /api/auth/callback/spotify", AddCorsHeaderMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		handleSpotifyCallback(w, r, s.storage)
 	}))
 
 	// TODO: add CSRF in application
-	http.HandleFunc("GET /api/auth/csrf", nil)
+	//http.HandleFunc("GET /api/auth/csrf", nil)
 
 	return http.ListenAndServe(s.listenPort, nil)
 }

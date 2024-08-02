@@ -1,25 +1,34 @@
 services:
-  #weatherwear:
-  #  build:
-  #    context: .
-  #    dockerfile: Dockerfile
-  #  container_name: weatherwear
-  #  ports:
-  #    - "8080:8080"
-  #  depends_on:
-  #    - postgres
-  #    - redis
-  #  networks:
-  #    - dbnet
-  #    - redisnet
+  weatherwear:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: weatherwear
+    environment:
+      - API_KEY_WEATHERAPI=${API_KEY_WEATHERAPI}
+      - AUTH_SPOTIFY_CLIENT_ID=${AUTH_SPOTIFY_CLIENT_ID}
+      - AUTH_SPOTIFY_CLIENT_SECRET=${AUTH_SPOTIFY_CLIENT_SECRET}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PW=${DB_PW}
+      - DB_NAME=${DB_NAME}
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - dbnet
+      - redisnet
 
   postgres:
     container_name: postgres
     image: postgres:latest
     environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PW}
-      - POSTGRES_DB=${POSTGRES_DB} #optional (specify default database instead of $POSTGRES_DB)
+      - DB_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PW}
+      - DB_NAME=${DB_NAME}
     volumes:
       - ./db-data/:/var/lib/postgresql/data/
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql

@@ -30,6 +30,7 @@ type contextKey string
 
 const spotifyClientKey = contextKey("spotifyClient")
 
+// TODO: Add get instance function
 func init() {
 	// Load environment variables if they are not set
 	clientId := os.Getenv("AUTH_SPOTIFY_CLIENT_ID")
@@ -38,7 +39,7 @@ func init() {
 	if clientId == "" || clientSecret == "" {
 		err := util.LoadEnvFile(".env")
 		if err != nil {
-			log.Fatal("No env file or env vars provided!")
+			log.Fatal("auth.go: No env file or env vars provided!")
 		}
 	}
 

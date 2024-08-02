@@ -7,6 +7,13 @@ import (
 	"strings"
 )
 
+func CheckEnvFileExists(filepath string) bool {
+	if _, err := os.Stat(filepath); os.IsNotExist(err) {
+		return false
+	}
+	return true
+}
+
 func LoadEnvFile(filepath string) error {
 	file, err := os.Open(filepath)
 	if err != nil {

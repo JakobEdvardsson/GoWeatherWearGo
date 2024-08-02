@@ -3,12 +3,9 @@ package storage
 import (
 	"database/sql"
 	"fmt"
-	"log"
-	"os"
 	"time"
 
 	"github.com/JakobEdvardsson/GoWeatherWearGo/types"
-	"github.com/JakobEdvardsson/GoWeatherWearGo/util"
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 	"golang.org/x/oauth2"
@@ -18,44 +15,9 @@ type PostgresStorage struct {
 	DB *sql.DB
 }
 
-type PostgresSettings struct {
-	pgHost     string
-	pgPort     int
-	pgUsername string
-	pgPassword string
-	pgDbname   string
-}
-
-var pgSettings *PostgresSettings
-
-func init() {
-	pgUsername := os.Getenv("POSTGRES_USER")
-	pgPassword := os.Getenv("POSTGRES_PW")
-	pgDbname := os.Getenv("POSTGRES_DB")
-
-	if pgUsername == "" || pgPassword == "" || pgDbname == "" {
-		// Load environment variables if they are not set
-		err := util.LoadEnvFile(".env")
-		if err != nil {
-			log.Fatal("No env file or env vars provided!")
-		}
-		pgUsername = os.Getenv("POSTGRES_USER")
-		pgPassword = os.Getenv("POSTGRES_PW")
-		pgDbname = os.Getenv("POSTGRES_DB")
-	}
-
-	pgSettings = &PostgresSettings{
-		pgHost:     "host.docker.internal",
-		pgPort:     5432,
-		pgUsername: pgUsername,
-		pgPassword: pgPassword,
-		pgDbname:   pgDbname,
-	}
-}
-
-func NewPostgresStorage() *PostgresStorage {
+func NewPostgresStorage(pgHost string, pgUsername string, pgPassword string, pgDbname string, pgPort int) *PostgresStorage {
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-		pgSettings.pgHost, pgSettings.pgPort, pgSettings.pgUsername, pgSettings.pgPassword, pgSettings.pgDbname)
+		pgHost, pgPort, pgUsername, pgPassword, pgDbname)
 
 	db, err := sql.Open("postgres", psqlInfo)
 	if err != nil {
